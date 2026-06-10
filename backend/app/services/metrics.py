@@ -77,4 +77,33 @@ def performance_stats(prices: pd.DataFrame, weights: dict[str, float], risk_free
     }
 
 
-__all__ = ["correlation_matrix", "rolling_volatility", "performance_stats"]
+def asset_stats(prices: pd.DataFrame, risk_free: float = 0.02) -> list[dict[str, object]]:
+    """Per-asset summary statistics over the price window."""
+
+    returns = prices.pct_change().dropna(how="any")
+    if returns.empty:
+        raise ValueError("Not enough price history to compute statistics")
+
+    results: list[dict[str, object]] = []
+    for ticker in returns.columns:
+        r = returns[ticker].to_numpy()
+        equity = np.cumprod(1.0 + r)
+        running_max = np.maximum.accumulate(equity)
+        max_dd = float((equity / running_max - 1.0).min())
+        ann_return = float((1.0 + r.mean()) ** TRADING_DAYS - 1.0)
+        ann_vol = float(r.std(ddof=1) * np.sqrt(TRADING_DAYS))
+        sharpe = (ann_return - risk_free) / ann_vol if ann_vol > 0 else 0.0
+        results.append(
+            {
+                "ticker": ticker,
+                "total_return": float(equity[-1] - 1.0),
+                "annual_return": ann_return,
+                "annual_volatility": ann_vol,
+                "sharpe": sharpe,
+                "max_drawdown": max_dd,
+            }
+        )
+    return results
+
+
+__all__ = ["correlation_matrix", "rolling_volatility", "performance_stats", "asset_stats"]

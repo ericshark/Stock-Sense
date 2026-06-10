@@ -1,12 +1,14 @@
 import { FolderOpen, Loader2, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useDeletePortfolio, usePortfolios } from '../lib/api'
+import { extractErrorMessage, useDeletePortfolio, usePortfolios } from '../lib/api'
+import { useToast } from '../lib/toast'
 import { formatDate, formatPercent } from '../lib/format'
 import { CHART_COLORS } from '../components/Chart'
 
 export default function Portfolios() {
   const { data: portfolios, isLoading } = usePortfolios()
   const deletePortfolio = useDeletePortfolio()
+  const toast = useToast()
 
   return (
     <div className="space-y-6">
@@ -50,7 +52,12 @@ export default function Portfolios() {
                 <button
                   type="button"
                   aria-label={`Delete ${portfolio.name}`}
-                  onClick={() => deletePortfolio.mutate(portfolio.id)}
+                  onClick={() =>
+                    deletePortfolio.mutate(portfolio.id, {
+                      onSuccess: () => toast.success(`Deleted “${portfolio.name}”`),
+                      onError: (err) => toast.error(extractErrorMessage(err)),
+                    })
+                  }
                   disabled={deletePortfolio.isLoading}
                   className="rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
                 >

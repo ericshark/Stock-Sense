@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from app.services.metrics import performance_stats
+from app.services.metrics import asset_stats, performance_stats, rolling_volatility
 
 
 def make_prices(values: list[float]) -> pd.DataFrame:
@@ -37,6 +37,23 @@ def test_insufficient_history_raises():
     prices = make_prices([100])
     with pytest.raises(ValueError):
         performance_stats(prices, {"A": 1.0})
+
+
+def test_asset_stats_known_values():
+    prices = make_prices([100, 120, 90, 110])
+    stats = asset_stats(prices, risk_free=0.0)[0]
+    assert stats["ticker"] == "A"
+    assert np.isclose(stats["total_return"], 0.10)
+    assert np.isclose(stats["max_drawdown"], -0.25)
+
+
+def test_rolling_volatility_shape():
+    rng = np.random.default_rng(0)
+    returns = pd.DataFrame({"A": rng.normal(0, 0.01, 100), "B": rng.normal(0, 0.02, 100)})
+    vol = rolling_volatility(returns, window=21).dropna(how="any")
+    assert len(vol) == 100 - 20
+    # Higher-vol asset should show higher rolling vol on average.
+    assert vol["B"].mean() > vol["A"].mean()
 
 
 def test_sortino_higher_than_sharpe_for_positive_skew():

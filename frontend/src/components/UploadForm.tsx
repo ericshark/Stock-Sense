@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, Loader2, UploadCloud } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { extractErrorMessage, useUploadCsv } from '../lib/api'
+import { useToast } from '../lib/toast'
 
 const SAMPLE_CSV = `date,AAPL,MSFT,GOOG
 2024-01-02,185.64,370.87,138.17
@@ -16,6 +17,7 @@ export default function UploadForm() {
   const [dragging, setDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const uploadMutation = useUploadCsv()
+  const toast = useToast()
 
   const acceptFile = (candidate: File | undefined) => {
     if (!candidate) return
@@ -26,7 +28,13 @@ export default function UploadForm() {
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!file) return
-    uploadMutation.mutate(file)
+    uploadMutation.mutate(file, {
+      onSuccess: (summary) => {
+        const rows = summary.reduce((acc, item) => acc + item.rows, 0)
+        toast.success(`Ingested ${rows.toLocaleString()} rows across ${summary.length} tickers`)
+      },
+      onError: (err) => toast.error(extractErrorMessage(err)),
+    })
   }
 
   const downloadSample = () => {

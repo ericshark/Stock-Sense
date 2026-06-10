@@ -1,5 +1,16 @@
 import { useState } from 'react'
-import { Activity, AlertCircle, BookmarkPlus, Check, Loader2, Percent, TrendingDown, TrendingUp, Waves } from 'lucide-react'
+import {
+  Activity,
+  AlertCircle,
+  BookmarkPlus,
+  Check,
+  Copy,
+  Download,
+  Percent,
+  TrendingDown,
+  TrendingUp,
+  Waves,
+} from 'lucide-react'
 import Controls from '../components/Controls'
 import StatCard from '../components/ResultsCard'
 import Chart, { CHART_COLORS } from '../components/Chart'
@@ -12,6 +23,7 @@ import {
   runOptimization,
   useSavePortfolio,
 } from '../lib/api'
+import { useToast } from '../lib/toast'
 import { formatNumber, formatPercent } from '../lib/format'
 
 interface ResultState {
@@ -28,12 +40,17 @@ const strategyTitles: Record<string, string> = {
   'vol-target': 'Volatility Targeting',
 }
 
+const pct = (v: number) => formatPercent(v)
+const pct1 = (v: number) => formatPercent(v, 1)
+const num = (v: number) => formatNumber(v)
+
 export default function Dashboard() {
   const [result, setResult] = useState<ResultState | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [portfolioName, setPortfolioName] = useState('')
   const savePortfolio = useSavePortfolio()
+  const toast = useToast()
 
   const onRun = async (strategy: string, payload: Record<string, unknown>) => {
     setLoading(true)
@@ -68,7 +85,33 @@ export default function Dashboard() {
 
   const onSave = () => {
     if (!result || !portfolioName.trim()) return
-    savePortfolio.mutate({ name: portfolioName.trim(), weights: result.response.weights })
+    savePortfolio.mutate(
+      { name: portfolioName.trim(), weights: result.response.weights },
+      {
+        onSuccess: (data) => toast.success(`Saved “${data.name}” to portfolios`),
+        onError: (err) => toast.error(extractErrorMessage(err)),
+      },
+    )
+  }
+
+  const copyWeights = async () => {
+    if (!result) return
+    await navigator.clipboard.writeText(JSON.stringify(result.response.weights, null, 2))
+    toast.success('Weights copied as JSON')
+  }
+
+  const downloadWeights = () => {
+    if (!result) return
+    const rows = Object.entries(result.response.weights)
+      .map(([t, w]) => `${t},${w.toFixed(6)}`)
+      .join('\n')
+    const blob = new Blob([`ticker,weight\n${rows}\n`], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `stocksense-${result.strategy}-weights.csv`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   const weights = result ? Object.entries(result.response.weights).sort((a, b) => b[1] - a[1]) : []
@@ -106,9 +149,16 @@ export default function Dashboard() {
       )}
 
       {loading && (
-        <div className="card flex items-center justify-center gap-3 py-16 text-slate-500 dark:text-slate-400">
-          <Loader2 size={22} className="animate-spin text-brand-500" />
-          Crunching the numbers…
+        <div className="space-y-6">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="skeleton h-24" />
+            ))}
+          </div>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="skeleton h-96" />
+            <div className="skeleton h-96" />
+          </div>
         </div>
       )}
 
@@ -118,13 +168,19 @@ export default function Dashboard() {
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">
               {strategyTitles[result.strategy] ?? result.strategy} Result
             </h2>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" className="btn-ghost !px-2.5" title="Copy weights as JSON" onClick={copyWeights}>
+                <Copy size={15} />
+              </button>
+              <button type="button" className="btn-ghost !px-2.5" title="Download weights as CSV" onClick={downloadWeights}>
+                <Download size={15} />
+              </button>
               <input
                 type="text"
                 placeholder="Portfolio name"
                 value={portfolioName}
                 onChange={(e) => setPortfolioName(e.target.value)}
-                className="input !w-48"
+                className="input !w-44"
               />
               <button
                 type="button"
@@ -141,53 +197,56 @@ export default function Dashboard() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               label="Expected Return"
-              value={formatPercent(result.response.mu)}
+              value={result.response.mu}
+              format={pct}
               hint="Annualized"
               icon={<TrendingUp size={18} />}
               tone={result.response.mu >= 0 ? 'positive' : 'negative'}
             />
-            <StatCard label="Volatility" value={formatPercent(result.response.sigma)} hint="Annualized σ" icon={<Waves size={18} />} />
+            <StatCard label="Volatility" value={result.response.sigma} format={pct} hint="Annualized σ" icon={<Waves size={18} />} />
             <StatCard
               label="Sharpe Ratio"
-              value={formatNumber(result.response.sharpe)}
+              value={result.response.sharpe}
+              format={num}
               hint="Excess return / risk"
               icon={<Percent size={18} />}
             />
             {stats ? (
               <StatCard
                 label="Max Drawdown"
-                value={formatPercent(stats.max_drawdown)}
+                value={stats.max_drawdown}
+                format={pct}
                 hint="Backtest, daily rebalance"
                 icon={<TrendingDown size={18} />}
                 tone="negative"
               />
             ) : (
-              <StatCard label="Assets" value={String(weights.length)} hint="In the optimized portfolio" />
+              <StatCard label="Assets" value={weights.length} format={(v) => String(Math.round(v))} hint="In the optimized portfolio" />
             )}
           </div>
 
           {stats && (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard label="Total Return" value={formatPercent(stats.total_return)} hint="Over selected window" tone={stats.total_return >= 0 ? 'positive' : 'negative'} />
-              <StatCard label="Sortino" value={formatNumber(stats.sortino)} hint="Downside-risk adjusted" />
-              <StatCard label="Calmar" value={formatNumber(stats.calmar)} hint="Return / max drawdown" />
-              <StatCard label="CVaR 95%" value={formatPercent(stats.cvar_95)} hint="Avg. of worst 5% days" tone="negative" />
+              <StatCard label="Total Return" value={stats.total_return} format={pct} hint="Over selected window" tone={stats.total_return >= 0 ? 'positive' : 'negative'} />
+              <StatCard label="Sortino" value={stats.sortino} format={num} hint="Downside-risk adjusted" />
+              <StatCard label="Calmar" value={stats.calmar} format={num} hint="Return / max drawdown" />
+              <StatCard label="CVaR 95%" value={stats.cvar_95} format={pct} hint="Avg. of worst 5% days" tone="negative" />
             </div>
           )}
 
           {(result.response.growth !== undefined || result.response.achieved_vol !== undefined) && (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {result.response.growth !== undefined && (
-                <StatCard label="Expected Log-Growth" value={formatPercent(result.response.growth)} hint="Kelly objective g" />
+                <StatCard label="Expected Log-Growth" value={result.response.growth} format={pct} hint="Kelly objective g" />
               )}
               {result.response.achieved_vol !== undefined && (
-                <StatCard label="Achieved Vol" value={formatPercent(result.response.achieved_vol)} hint="After scaling" />
+                <StatCard label="Achieved Vol" value={result.response.achieved_vol} format={pct} hint="After scaling" />
               )}
               {result.response.scale !== undefined && (
-                <StatCard label="Exposure Scale" value={`${formatNumber(result.response.scale)}×`} hint="Applied to base weights" />
+                <StatCard label="Exposure Scale" value={result.response.scale} format={(v) => `${formatNumber(v)}×`} hint="Applied to base weights" />
               )}
               {result.response.cash_weight !== undefined && (
-                <StatCard label="Cash Weight" value={formatPercent(result.response.cash_weight)} hint="Earns the risk-free rate" />
+                <StatCard label="Cash Weight" value={result.response.cash_weight} format={pct} hint="Earns the risk-free rate" />
               )}
             </div>
           )}
@@ -221,7 +280,7 @@ export default function Dashboard() {
                       />
                     </div>
                     <span className="w-16 text-right font-medium tabular-nums text-slate-600 dark:text-slate-300">
-                      {formatPercent(weight, 1)}
+                      {pct1(weight)}
                     </span>
                   </li>
                 ))}

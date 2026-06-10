@@ -6,9 +6,17 @@ body {
   @apply font-sans text-slate-900 antialiased dark:text-slate-100;
 }
 
+::selection {
+  @apply bg-brand-500/30;
+}
+
 @layer components {
   .card {
-    @apply rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900;
+    @apply rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition-colors dark:border-slate-800/80 dark:bg-slate-900/70;
+  }
+
+  .card-hover {
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:hover:border-slate-700;
   }
 
   .card-title {
@@ -16,7 +24,7 @@ body {
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-500 hover:shadow-md hover:shadow-brand-500/20 focus:outline-none focus:ring-2 focus:ring-brand-500/50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none;
   }
 
   .btn-ghost {
@@ -36,10 +44,30 @@ body {
   }
 
   .chip-active {
-    @apply border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-900/40 dark:text-brand-200;
+    @apply border-brand-500 bg-brand-50 text-brand-700 shadow-sm shadow-brand-500/10 dark:border-brand-400 dark:bg-brand-900/40 dark:text-brand-200;
   }
 
   .chip-inactive {
     @apply border-slate-300 text-slate-600 hover:border-brand-300 hover:text-brand-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-brand-600 dark:hover:text-brand-300;
+  }
+
+  .skeleton {
+    @apply animate-pulse rounded-2xl bg-slate-200/70 dark:bg-slate-800/60;
+  }
+
+  .table-base {
+    @apply w-full text-sm;
+  }
+
+  .table-base th {
+    @apply border-b border-slate-200 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400;
+  }
+
+  .table-base td {
+    @apply border-b border-slate-100 px-3 py-2.5 tabular-nums dark:border-slate-800/60;
+  }
+
+  .table-base tr:last-child td {
+    @apply border-b-0;
   }
 }

@@ -146,3 +146,72 @@ export const fetchPerformance = async (payload: {
   const { data } = await client.post('/metrics/performance', payload)
   return data as PerformanceResponse
 }
+
+export interface AssetSummary {
+  ticker: string
+  name: string | null
+  rows: number
+  start_date: string | null
+  end_date: string | null
+}
+
+export interface SeriesResponse {
+  dates: string[]
+  series: Record<string, number[]>
+}
+
+export interface AssetStats {
+  ticker: string
+  total_return: number
+  annual_return: number
+  annual_volatility: number
+  sharpe: number
+  max_drawdown: number
+}
+
+export const useAssets = () =>
+  useQuery({
+    queryKey: ['assets'],
+    queryFn: async () => {
+      const { data } = await client.get<{ assets: AssetSummary[] }>('/data/assets')
+      return data.assets
+    },
+  })
+
+export const useDeleteAsset = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (ticker: string) => {
+      const { data } = await client.delete(`/data/assets/${ticker}`)
+      return data as { deleted: string }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assets'] })
+      queryClient.invalidateQueries({ queryKey: ['tickers'] })
+    },
+  })
+}
+
+export const fetchPrices = async (tickers: string[], options?: { normalize?: boolean; start_date?: string; end_date?: string }) => {
+  const { data } = await client.get('/data/prices', {
+    params: { tickers, ...options },
+    paramsSerializer: { indexes: null },
+  })
+  return data as SeriesResponse
+}
+
+export const fetchRollingVol = async (tickers: string[], window: number, options?: { start_date?: string; end_date?: string }) => {
+  const { data } = await client.get('/metrics/rolling-vol', {
+    params: { tickers, window, ...options },
+    paramsSerializer: { indexes: null },
+  })
+  return data as SeriesResponse & { window: number }
+}
+
+export const fetchAssetStats = async (tickers: string[], options?: { risk_free?: number; start_date?: string; end_date?: string }) => {
+  const { data } = await client.get('/metrics/asset-stats', {
+    params: { tickers, ...options },
+    paramsSerializer: { indexes: null },
+  })
+  return data as { stats: AssetStats[] }
+}

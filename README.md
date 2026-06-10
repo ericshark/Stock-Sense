@@ -4,12 +4,14 @@ StockSense is a full-stack portfolio analytics platform. Upload price histories,
 
 ## Features
 
-- **CSV ingestion** into PostgreSQL (long or wide format) with idempotent upserts.
+- **CSV ingestion** into PostgreSQL (long or wide format) with idempotent upserts, plus dataset management (browse row counts/date ranges, delete tickers).
 - **Four optimizers**: Mean-Variance (max-Sharpe, min-variance, efficient frontier), Risk Parity (equal risk contribution), Kelly (full or fractional), and Volatility Targeting (with cash/leverage accounting).
+- **Explore page**: normalized price comparison, rolling volatility (21/63/126d), and per-asset stats (return, vol, Sharpe, max drawdown).
+- **Compare page**: run all five strategy variants on the same universe and see backtested Sharpe/Sortino/drawdown side by side, with overlaid equity curves and grouped weight bars.
 - **Risk analytics**: correlation heatmap, risk-contribution breakdown, Ledoit-Wolf-style covariance shrinkage.
 - **Backtesting**: equity curve, drawdown curve, Sharpe, Sortino, Calmar, max drawdown, VaR/CVaR (95%).
-- **Portfolio management**: save optimized allocations, browse and delete them.
-- **Modern UI**: React + Vite + Tailwind with persistent dark mode, interactive Plotly charts, drag-and-drop uploads.
+- **Portfolio management**: save optimized allocations, browse and delete them, export weights as CSV/JSON.
+- **Modern UI**: React + Vite + Tailwind app shell with sidebar navigation, persistent light/dark mode, animated stat cards, toast notifications, skeleton loading, interactive Plotly charts, drag-and-drop uploads.
 
 ## Getting Started
 
@@ -72,12 +74,16 @@ Interactive docs at `http://localhost:8000/docs`. Highlights:
 |---|---|
 | `POST /api/data/upload_csv` | Ingest price CSV (multipart) |
 | `GET /api/data/tickers` | List available tickers |
+| `GET /api/data/assets` / `DELETE /api/data/assets/{ticker}` | Dataset summaries; remove a ticker |
+| `GET /api/data/prices` | Price series (optionally normalized to 100) |
 | `POST /api/optimize/mean-variance` | Max-Sharpe / min-variance / efficient frontier |
 | `POST /api/optimize/risk-parity` | Equal risk contribution weights |
 | `POST /api/optimize/kelly` | Kelly weights (supports `fraction`, `long_only`) |
 | `POST /api/optimize/vol-target` | Volatility-targeted scaling with cash/leverage |
 | `GET /api/metrics/correlation` | Return correlation matrix |
 | `POST /api/metrics/performance` | Backtest weights: equity curve, drawdown, stats |
+| `GET /api/metrics/rolling-vol` | Rolling annualized volatility per ticker |
+| `GET /api/metrics/asset-stats` | Per-asset return/vol/Sharpe/drawdown summary |
 | `POST /api/portfolios` / `GET` / `DELETE /{id}` | Save, list, delete portfolios |
 
 Example:
