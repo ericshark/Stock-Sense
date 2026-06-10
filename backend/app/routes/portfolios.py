@@ -5,8 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..db import db_session
-from ..repositories.asset_repo import list_tickers
-from ..repositories.portfolio_repo import create_portfolio, get_portfolio, list_portfolios
+from ..repositories.portfolio_repo import create_portfolio, delete_portfolio, get_portfolio, list_portfolios
 from ..schemas import PortfolioCreateRequest
 
 router = APIRouter(prefix="/portfolios", tags=["portfolios"])
@@ -49,3 +48,10 @@ async def get_one(portfolio_id: int, session: Session = Depends(get_db)) -> dict
         "created_at": portfolio.created_at.isoformat(),
         "weights": {pa.asset.ticker: pa.weight for pa in portfolio.assets},
     }
+
+
+@router.delete("/{portfolio_id}")
+async def delete_one(portfolio_id: int, session: Session = Depends(get_db)) -> dict:
+    if not delete_portfolio(session, portfolio_id):
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    return {"deleted": portfolio_id}

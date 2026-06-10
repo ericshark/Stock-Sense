@@ -1,26 +1,24 @@
-.PHONY: dev fmt lint test seed backend frontend
+.PHONY: dev backend frontend seed test test-frontend build
 
 DEV_COMPOSE=docker-compose.yml
 
-fmt:
-	poetry run black backend
-	poetry run isort backend
-
-lint:
-	poetry run ruff backend
-	poetry run mypy backend
+dev:
+	docker compose -f $(DEV_COMPOSE) up --build
 
 backend:
-	cd backend && uvicorn app.main:app --reload
+	cd backend && .venv/bin/uvicorn app.main:app --reload
 
 frontend:
 	cd frontend && npm run dev
 
 seed:
-	python backend/scripts/seed.py
-
-dev:
-	docker compose -f $(DEV_COMPOSE) up
+	cd backend && .venv/bin/python scripts/seed.py
 
 test:
-	poetry run pytest
+	cd backend && .venv/bin/python -m pytest
+
+test-frontend:
+	cd frontend && npx vitest run
+
+build:
+	cd frontend && npm run build

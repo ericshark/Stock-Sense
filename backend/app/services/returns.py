@@ -3,13 +3,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from functools import lru_cache
-from typing import Iterable
 
 import numpy as np
 import pandas as pd
-
-from ..config import get_settings
 
 TRADING_DAYS = 252
 
@@ -40,27 +36,43 @@ def annualized_mean_cov(returns: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
     return mu, cov
 
 
-def shrink_covariance(cov: np.ndarray, shrinkage: float = 1e-6) -> np.ndarray:
-    ident = np.eye(cov.shape[0])
-    return cov + shrinkage * ident
+def shrink_covariance(cov: np.ndarray, shrinkage: float = 0.1) -> np.ndarray:
+    """Shrink the sample covariance toward a structured target.
 
+    Implements the standard linear shrinkage estimator
+    ``(1 - delta) * S + delta * F`` where the target ``F`` keeps the sample
+    variances on the diagonal and replaces every pairwise correlation with the
+    average sample correlation (the constant-correlation target of
+    Ledoit & Wolf, 2004). This stabilises the inverse used by Kelly sizing and
+    mean-variance optimisation when assets are highly correlated or history is
+    short.
+    """
 
-def cache_key(config: ReturnConfig) -> tuple:
-    return (config.tickers, config.start_date, config.end_date, config.use_log)
+    n = cov.shape[0]
+    if n == 1:
+        return cov.copy()
 
+    std = np.sqrt(np.diag(cov))
+    outer_std = np.outer(std, std)
+    # Guard against zero-variance assets to keep the correlation matrix finite.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        corr = np.where(outer_std > 0, cov / outer_std, 0.0)
 
-@lru_cache(maxsize=32)
-def cached_covariance(config: ReturnConfig, prices: tuple[tuple[float, ...], ...], index: tuple[str, ...]) -> tuple[np.ndarray, np.ndarray, list[str]]:
-    df = pd.DataFrame(prices, columns=config.tickers, index=pd.Index(index))
-    returns = compute_returns(df, use_log=config.use_log)
-    mu, cov = annualized_mean_cov(returns)
-    return mu, cov, list(returns.columns)
+    off_diag = corr[~np.eye(n, dtype=bool)]
+    mean_corr = float(off_diag.mean()) if off_diag.size else 0.0
+    target = mean_corr * outer_std
+    np.fill_diagonal(target, np.diag(cov))
+
+    delta = float(np.clip(shrinkage, 0.0, 1.0))
+    shrunk = (1.0 - delta) * cov + delta * target
+    # Tiny ridge keeps the matrix positive definite for pseudo-inversion.
+    return shrunk + np.eye(n) * 1e-8
 
 
 __all__ = [
+    "TRADING_DAYS",
     "compute_returns",
     "annualized_mean_cov",
     "shrink_covariance",
     "ReturnConfig",
-    "cached_covariance",
 ]

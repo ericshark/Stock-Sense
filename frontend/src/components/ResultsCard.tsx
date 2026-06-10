@@ -1,35 +1,33 @@
-interface MetricCardProps {
-  mu: number
-  sigma: number
-  sharpe: number
-  extra?: Record<string, number>
+import { ReactNode } from 'react'
+
+interface StatCardProps {
+  label: string
+  value: string
+  hint?: string
+  icon?: ReactNode
+  tone?: 'default' | 'positive' | 'negative'
 }
 
-export default function ResultsCard({ mu, sigma, sharpe, extra }: MetricCardProps) {
+export default function StatCard({ label, value, hint, icon, tone = 'default' }: StatCardProps) {
+  const valueColor =
+    tone === 'positive'
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : tone === 'negative'
+        ? 'text-rose-600 dark:text-rose-400'
+        : 'text-slate-900 dark:text-white'
+
   return (
-    <div className="rounded border border-slate-200 bg-white p-4 shadow-sm">
-      <h3 className="text-lg font-semibold text-slate-800">Portfolio Metrics</h3>
-      <dl className="mt-4 grid grid-cols-2 gap-4 text-sm">
-        <div>
-          <dt className="text-slate-500">Annual Return (μ)</dt>
-          <dd className="font-semibold">{mu.toFixed(4)}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Annual Volatility (σ)</dt>
-          <dd className="font-semibold">{sigma.toFixed(4)}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Sharpe Ratio</dt>
-          <dd className="font-semibold">{sharpe.toFixed(3)}</dd>
-        </div>
-        {extra &&
-          Object.entries(extra).map(([key, value]) => (
-            <div key={key}>
-              <dt className="text-slate-500 capitalize">{key.replace('_', ' ')}</dt>
-              <dd className="font-semibold">{value.toFixed(4)}</dd>
-            </div>
-          ))}
-      </dl>
+    <div className="card flex items-start justify-between gap-3 !p-4">
+      <div className="min-w-0">
+        <p className="truncate text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+        <p className={`mt-1 text-2xl font-bold tabular-nums ${valueColor}`}>{value}</p>
+        {hint && <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{hint}</p>}
+      </div>
+      {icon && (
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300">
+          {icon}
+        </span>
+      )}
     </div>
   )
 }

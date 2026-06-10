@@ -38,4 +38,13 @@ def list_portfolios(session: Session) -> list[Portfolio]:
     return list(session.execute(stmt).scalars())
 
 
-__all__ = ["create_portfolio", "get_portfolio", "list_portfolios"]
+def delete_portfolio(session: Session, portfolio_id: int) -> bool:
+    portfolio = get_portfolio(session, portfolio_id)
+    if not portfolio:
+        return False
+    session.delete(portfolio)
+    session.flush()
+    return True
+
+
+__all__ = ["create_portfolio", "get_portfolio", "list_portfolios", "delete_portfolio"]

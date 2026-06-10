@@ -1,92 +1,133 @@
 # StockSense — Portfolio Optimizer Dashboard
 
-StockSense is a full-stack reference implementation for portfolio analytics. Upload price histories, run multiple optimization strategies, and visualise the results in a modern dashboard.
+StockSense is a full-stack portfolio analytics platform. Upload price histories, run optimization strategies, inspect risk, and backtest the result in a modern dashboard.
 
 ## Features
-- CSV ingestion into PostgreSQL (long or wide format) with idempotent upserts.
-- Mean-Variance, Kelly and Volatility Targeting optimisers with Plotly visualisations.
-- FastAPI backend with SQLAlchemy, Alembic migrations, and pytest coverage.
-- React + Vite frontend using React Query, TailwindCSS and Plotly.
-- Docker Compose for local development, including a seed dataset and Makefile helpers.
+
+- **CSV ingestion** into PostgreSQL (long or wide format) with idempotent upserts.
+- **Four optimizers**: Mean-Variance (max-Sharpe, min-variance, efficient frontier), Risk Parity (equal risk contribution), Kelly (full or fractional), and Volatility Targeting (with cash/leverage accounting).
+- **Risk analytics**: correlation heatmap, risk-contribution breakdown, Ledoit-Wolf-style covariance shrinkage.
+- **Backtesting**: equity curve, drawdown curve, Sharpe, Sortino, Calmar, max drawdown, VaR/CVaR (95%).
+- **Portfolio management**: save optimized allocations, browse and delete them.
+- **Modern UI**: React + Vite + Tailwind with persistent dark mode, interactive Plotly charts, drag-and-drop uploads.
 
 ## Getting Started
 
-### Prerequisites
-- Docker & Docker Compose
-- Make (optional, for shortcuts)
+### Option A — Docker (recommended)
 
-### Development Setup
 ```bash
-make dev
+make dev          # or: docker compose up --build
 ```
-This spins up PostgreSQL, the FastAPI backend on `localhost:8000`, and the React frontend on `localhost:5173`.
 
-### Manual Setup
+This starts PostgreSQL, the FastAPI backend on `localhost:8000`, and the production frontend (nginx) on `localhost:5173`. Tables are created automatically on backend startup.
+
+### Option B — Manual setup
+
+Backend:
 ```bash
 cd backend
-pip install -e .[dev]
-uvicorn app.main:app --reload
+python3 -m venv .venv
+.venv/bin/pip install -e '.[dev]'
+STOCKSENSE_DATABASE_URL=sqlite:///./stocksense.db .venv/bin/uvicorn app.main:app --reload
 ```
-In a new terminal:
+
+Frontend (new terminal):
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev       # serves on :5173, proxies /api to :8000
 ```
 
-### Database Migrations
+SQLite works out of the box for local development; set `STOCKSENSE_DATABASE_URL` to a PostgreSQL URL for production parity.
+
+### Seed sample data
+
 ```bash
-cd backend
-alembic upgrade head
+make seed         # loads backend/seed/sample_prices.csv (2 years, 5 tickers)
 ```
 
-### Seed Sample Data
-```bash
-make seed
+Or upload any CSV from the **Upload Data** page. Supported formats:
+
+```csv
+date,AAPL,MSFT          # wide
+2024-01-02,185.64,370.87
 ```
-Loads `backend/seed/sample_prices.csv` into the database.
+```csv
+date,ticker,close       # long
+2024-01-02,AAPL,185.64
+```
 
 ### Testing
+
 ```bash
-cd backend
-pytest
-```
-```bash
-cd frontend
-npm test
+make test             # backend: pytest
+make test-frontend    # frontend: vitest
 ```
 
-## API Examples
+## API
 
-Upload CSV (wide format):
-```bash
-curl -X POST http://localhost:8000/api/data/upload_csv \
-  -F "file=@backend/seed/sample_prices.csv"
-```
+Interactive docs at `http://localhost:8000/docs`. Highlights:
 
-Mean-Variance optimisation:
+| Endpoint | Description |
+|---|---|
+| `POST /api/data/upload_csv` | Ingest price CSV (multipart) |
+| `GET /api/data/tickers` | List available tickers |
+| `POST /api/optimize/mean-variance` | Max-Sharpe / min-variance / efficient frontier |
+| `POST /api/optimize/risk-parity` | Equal risk contribution weights |
+| `POST /api/optimize/kelly` | Kelly weights (supports `fraction`, `long_only`) |
+| `POST /api/optimize/vol-target` | Volatility-targeted scaling with cash/leverage |
+| `GET /api/metrics/correlation` | Return correlation matrix |
+| `POST /api/metrics/performance` | Backtest weights: equity curve, drawdown, stats |
+| `POST /api/portfolios` / `GET` / `DELETE /{id}` | Save, list, delete portfolios |
+
+Example:
 ```bash
-curl -X POST http://localhost:8000/api/optimize/mean-variance \
+curl -X POST http://localhost:8000/api/optimize/risk-parity \
   -H "Content-Type: application/json" \
-  -d '{"tickers":["AAPL","MSFT"],"risk_free":0.02,"method":"max_sharpe"}'
+  -d '{"tickers":["AAPL","MSFT","TSLA"],"risk_free":0.02}'
 ```
 
-Kelly optimisation:
+## Configuration
+
+Environment variables (prefix `STOCKSENSE_`, or a `.env` file in `backend/`):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `STOCKSENSE_DATABASE_URL` | `postgresql+psycopg://postgres:postgres@db:5432/stocksense` | SQLAlchemy database URL |
+| `STOCKSENSE_API_KEY` | unset | If set, `/api/optimize/*` and `/api/portfolios` require an `X-API-Key` header |
+| `STOCKSENSE_CORS_ORIGINS` | `["http://localhost:5173"]` | Allowed browser origins |
+| `STOCKSENSE_LOG_LEVEL` | `INFO` | Backend log level |
+
+Frontend: `VITE_API_BASE_URL` (defaults to `/api`, served via dev proxy or nginx).
+
+## Deployment
+
+### Single host with Docker Compose
+
 ```bash
-curl -X POST http://localhost:8000/api/optimize/kelly \
-  -H "Content-Type: application/json" \
-  -d '{"tickers":["AAPL","MSFT"],"risk_free":0.02}'
+docker compose up --build -d
 ```
 
-Volatility targeting:
+The frontend container (nginx) serves the built SPA and reverse-proxies `/api/` to the backend container, so only port 5173 (or whatever you map) needs to be exposed publicly. For production:
+
+1. Change the Postgres password and set `STOCKSENSE_DATABASE_URL` accordingly.
+2. Set `STOCKSENSE_API_KEY` on the backend service to protect write endpoints.
+3. Map the frontend to port 80/443 behind TLS (e.g. Caddy, Traefik, or a cloud load balancer).
+
+### Managed platforms (Render / Railway / Fly.io)
+
+- **Backend**: deploy `backend/` as a Docker service (the Dockerfile runs gunicorn+uvicorn on `:8000`). Attach a managed PostgreSQL instance and set `STOCKSENSE_DATABASE_URL`.
+- **Frontend**: deploy `frontend/` as a Docker service, or build statically (`npm run build`) and host `dist/` on any static host with `VITE_API_BASE_URL` pointing at the backend URL (set `STOCKSENSE_CORS_ORIGINS` to match).
+
+### Database migrations
+
+Tables are auto-created on startup. For schema changes, use Alembic:
 ```bash
-curl -X POST http://localhost:8000/api/optimize/vol-target \
-  -H "Content-Type: application/json" \
-  -d '{"tickers":["AAPL","MSFT"],"target_vol":0.1,"lookback":60}'
+cd backend && alembic upgrade head
 ```
 
 ## Limitations & Future Work
-- Synthetic seed data is simplified; integrate with live data feeds for realism.
-- Does not model transaction costs, turnover, or rebalancing schedules.
-- No user accounts; API key header provides coarse access control.
 
+- Synthetic seed data is simplified; integrate with live data feeds for realism.
+- Backtests assume daily rebalancing without transaction costs or slippage.
+- No user accounts; the optional API key header provides coarse access control.

@@ -1,10 +1,14 @@
 """FastAPI application."""
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
+from .db import engine
+from .models import Base
 from .routes import data as data_routes
 from .routes import metrics as metrics_routes
 from .routes import optimize as optimize_routes
@@ -14,7 +18,16 @@ from .utils.logging import configure_logging
 configure_logging()
 settings = get_settings()
 
-app = FastAPI(title="StockSense Portfolio Optimizer")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Idempotent bootstrap so a fresh database works out of the box;
+    # alembic remains the source of truth for schema migrations.
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
+app = FastAPI(title="StockSense Portfolio Optimizer", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
